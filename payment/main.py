@@ -1,9 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.background import BackgroundTasks
 from redis_om import get_redis_connection, HashModel
-from starlette.requests import Request
-import requests, time
 
 # Create a FastAPI instance
 app = FastAPI()
@@ -24,50 +21,88 @@ redis = get_redis_connection(
     decode_responses=True
 )
 
-# Define an Order class that inherits from HashModel
-class Order(HashModel):
-    medicine_id: str
-    price: float
-    service_fee: float
-    total: float
-    quantity: int
-    status: str # pending, completed, refunded
+# Define a Payment approval class that inherits from HashModel
+class Payment(HashModel):
+    prescription_id: str
+    user_id: str
+    approved: str
+
     class Meta:
         database = redis
 
-# Endpoint to retrieve a specific order by its primary key
-@app.get('/orders/{pk}')
-def get(pk: str):
-    return Order.get(pk)
 
-# Endpoint to create a new order
-@app.post("/orders")
-async def create(request: Request, background_tasks: BackgroundTasks):
-    body = await request.json()
+# Endpoint to create a new payment approval
+@app.post("/payment-approvals")
+def create_payment_approval(approval: Payment):
+    # Save the provided Payment approval instance to the database
+    return approval.save()
 
-    # Fetch medicine information from another microservice
-    req = requests.get('http://localhost:8000/medicines/%s' % body['id'])
-    medicine = req.json()
 
-    # Create a new Order instance
-    order = Order(
-        medicine_id= body['id'],
-        price=  medicine['price'],
-        service_fee= 0.2 * medicine['price'],
-        total= 1.2 * medicine['price'],
-        quantity= body['quantity'],
-        status= 'pending'
-    )
-    order.save()
+# Endpoint to retrieve all payment approvals
+@app.get("/payment-approvals")
+def get_payment_approvals():
+    # Retrieve all payment approvals
+    return [format_payment_approval(pk) for pk in Payment.all_pks()]
 
-    # Add a background task to mark the order as completed
-    background_tasks.add_task(order_completed, order)
 
-    return order
+ # Format the payment approval data as needed
+def format_payment_approval(pk: str):
+    approval = Payment.get(pk)
 
-# Background task to mark the order as completed
-def order_completed(order: Order):
-    time.sleep(5) # Placeholder for further implementation
-    order.status = 'completed'
-    order.save()
-    redis.xadd('order_completed', order.dict(), '*')
+    return {
+        'pk': approval.pk,
+        'user_id':approval.user_id,
+        'prescription_id': approval.prescription_id,
+        'approved': approval.approved
+    }
+
+
+# Endpoint to delete a specific payment by its ID
+@app.get("/payment-approvals/{approval_id}")
+def get_payment_approval_id(approval_id: str):
+    # Retrieve the payment instance to be deleted
+    payment = Payment.get(approval_id)
+
+    # Return the deleted Payment instance
+    return payment
+
+
+# Endpoint to retrieve a specific payment approvals user_id
+@app.get('/payment-approvals/user/{user_id}')
+def get(user_id: str):
+    all_payment_approvals = [format_payment_approval(pk) for pk in Payment.all_pks()]
+    user_payment_approvals = []
+    for payment_approval in all_payment_approvals:
+        if(payment_approval['user_id'] == user_id):
+            user_payment_approvals.append(payment_approval)
+    
+    return user_payment_approvals
+
+
+# Endpoint to delete a specific payment by its ID
+@app.delete("/payment-approvals/{approval_id}")
+def delete_payment_approval(approval_id: str):
+    # Retrieve the Payment instance to be deleted
+    payment = Payment.get(approval_id)
+
+    # Delete the Payment instance from the database
+    payment.delete(approval_id)
+
+    # Return the deleted Payment instance
+    return payment
+
+
+# Endpoint to update the approval status of a payment
+@app.put("/payment-approvals/{payment_id}")
+def update_payment_approval(payment_id: str, approved: bool):
+    # Retrieve the Payment Approval instance to be updated
+    approval = Payment.get(payment_id)
+    
+    if not approval:
+        raise HTTPException(status_code=404, detail="Payment approval not found")
+
+    # Update the approval status
+    approval.approved = approved
+    approval.save()
+    
+    return format_payment_approval(approval)

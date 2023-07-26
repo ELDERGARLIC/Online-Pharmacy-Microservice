@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from redis_om import get_redis_connection, HashModel
+from pydantic import BaseModel
+import requests
 
 # Create a FastAPI instance
 app = FastAPI()
@@ -21,7 +23,6 @@ redis = get_redis_connection(
     decode_responses=True
 )
 
-
 # Define a Medicine class that inherits from HashModel
 class Medicine(HashModel):
     name: str
@@ -31,6 +32,10 @@ class Medicine(HashModel):
     class Meta:
         database = redis
 
+# Define a InventoryUpdate class that inherits from BaseModel
+class InventoryUpdate(BaseModel):
+    prescription_id: str
+
 
 # Endpoint to retrieve all medicines
 @app.get("/medicines")
@@ -39,6 +44,7 @@ def all_medicines():
     return [format_medicine(pk) for pk in Medicine.all_pks()]
 
 
+# Method to format the output for the get requests
 def format_medicine(pk: str):
     # Retrieve a Medicine instance by its primary key and format the data
     medicine = Medicine.get(pk)
@@ -75,3 +81,21 @@ def delete_medicine(pk: str):
     
     # Return the deleted Medicine instance
     return medicine
+
+
+# Endpoint to update a specific medicine by its primary key
+@app.put("/medicines")
+async def update_medicine(update: InventoryUpdate):
+    # Fetch prescription information from another microservice
+    req = requests.get('http://localhost:8002/prescriptions/%s' % update.prescription_id)
+    prescription = req.json()
+
+    try:
+        for medicine_id,quantity in prescription['medicine_list'].items():
+            medicine = Medicine.get(medicine_id)
+            medicine.quantity -= quantity
+            medicine.save()
+        return {"message": "Inventory updated successfully!"}
+    except:
+        return {"message": "Something went wront!"}
+    

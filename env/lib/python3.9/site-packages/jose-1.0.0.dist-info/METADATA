@@ -1,0 +1,93 @@
+Metadata-Version: 2.1
+Name: jose
+Version: 1.0.0
+Summary: An implementation of the JOSE draft
+Home-page: https://github.com/Demonware/jose
+Author: Demian Brecht
+Author-email: dbrecht@demonware.net
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Information Technology
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 2 :: Only
+Classifier: Topic :: Security
+Classifier: Topic :: Software Development :: Libraries
+License-File: LICENSE
+
+JOSE
+====
+
+JOSE is a framework intended to provide a method to securely transfer
+claims (such as authorization information) between parties. The JOSE framework
+provides a collection of specifications to serve this purpose. A JSON Web
+Token (JWT) contains claims that can be used to allow a system to apply access
+control to resources it owns.
+
+JWTs can be represented as either JSON Web Signature (JWS) or a JSON Web
+Encryption (JWE) objects. Claims within a JWS can be read as they are simply
+base64-encoded (but carry with them a signature for authentication). Claims
+in a JWE on the other hand, are encrypted and as such, are entirely opaque
+to clients using them as their means of authentication and authorization.
+
+This library implements JWS and JWEs along with a subset of the
+encryption / authentication algorithms recommended by the JOSE framework.
+
+Documentation
+=============
+http://jose.readthedocs.org/en/latest
+
+Builds
+======
+https://travis-ci.org/Demonware/jose
+
+
+CHANGES
+=======
+
+1.0.0 (2015-10-06)
+------------------
+- Fixed bug in authentication tag computation (patch contributed by jaimeperez)
+
+Important: This is a backwards incompatible change, in that tokens produced in this version will not be decipherable by tokens < 1.0.0. The jwe hash string used was changed to use an empty string rather than "." to fall in line with https://tools.ietf.org/html/rfc7518#section-5.2.2.1
+
+0.3.0 (2015-04-10)
+------------------
+- Fixed critical JWT vulnerability (patch contributed by yuriikonovaliuk)
+
+Important: Only unencrypted tokens are vulnerable. This fix lead to backward
+incompatible change to `verify` function signature.
+
+0.2.2 (2015-01-07)
+------------------
+- RFC compliance fixes (patch contributed by jaimeperez)
+
+Important: This change introduces a temporarily injected key (__v) in order to
+distinguish between legacy and newly issued tokens. This allows for the use
+of either token as to not break backwards compatibility and (possibly)
+degrade user experience. This will be removed for v1.0.
+
+In order to verify whether or not clients are using a legacy token, the
+application code can verify whether or not the key "__v" is contained in the
+headers (this can be done after deserialize_compact). The existence of the key
+identifies a newly created token.
+
+0.2.1 (2014-11-24)
+------------------
+- Unpinned pycrypto dependency (patch contributed by kuba)
+- Added CLI exposing "decrypt" command
+- Added custom exceptions, making client error handling easier
+
+0.1 (2014-04-16)
+----------------
+- Initial release
+
+
+Contributors
+============
+
+Demian Brecht (demianbrecht)
+Nick Murtagh (nmurtagh)
+Jakub Warmuz (kuba)
+Jaime Pérez (jaimeperez)
+Yurii Konovaliuk (yuriikonovaliuk)
